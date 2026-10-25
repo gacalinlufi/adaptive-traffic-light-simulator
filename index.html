@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semafori intelligenti — fase 4 AI</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #10161d;
+      --panel: #19232d;
+      --panel-soft: #202d39;
+      --line: #354655;
+      --text: #edf3f7;
+      --muted: #a7b7c5;
+      --accent: #5bc0a5;
+      --accent-hover: #79d5bb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at top, #1a2833 0, var(--page) 65%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell { max-width: 1240px; margin: 0 auto; padding: 26px 20px 34px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { font-size: clamp(25px, 4vw, 38px); line-height: 1.1; margin: 7px 0 9px; letter-spacing: -.035em; }
+    .intro { max-width: 720px; color: var(--muted); line-height: 1.5; margin: 0; }
+    .phase-pill { flex: 0 0 auto; border: 1px solid #477867; border-radius: 999px; color: #a9ead7; padding: 8px 12px; font-size: 12px; font-weight: 750; margin-top: 7px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 16px; align-items: start; }
+    .sim-panel, .control-panel { border: 1px solid var(--line); border-radius: 18px; background: rgba(25,35,45,.94); overflow: hidden; box-shadow: 0 15px 42px rgba(0,0,0,.17); }
+    .panel-head { padding: 14px 17px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+    .panel-head strong { font-size: 14px; }
+    .live-state { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(91,192,165,.12); }
+    .dot.paused { background: #e2b15d; box-shadow: 0 0 0 4px rgba(226,177,93,.12); }
+    .canvas-wrap { background: #c4d6c8; padding: 8px; }
+    canvas { display: block; width: 100%; height: auto; border-radius: 10px; background: #c4d6c8; }
+    .sim-foot { padding: 13px 16px 15px; display: flex; justify-content: space-between; gap: 14px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .sim-foot strong { color: var(--text); }
+    .control-panel { padding-bottom: 15px; }
+    .control-panel h2 { font-size: 15px; margin: 0; }
+    .controls-body { padding: 16px 16px 0; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    select { width: 100%; min-height: 42px; padding: 8px 10px; background: var(--panel-soft); color: var(--text); border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 13px; }
+    button { min-height: 40px; border-radius: 10px; font: inherit; font-weight: 750; font-size: 13px; cursor: pointer; transition: background .15s, border-color .15s, transform .15s; }
+    button:active { transform: translateY(1px); }
+    .primary { border: 1px solid var(--accent); color: #10231e; background: var(--accent); }
+    .primary:hover { background: var(--accent-hover); }
+    .secondary { color: var(--text); background: var(--panel-soft); border: 1px solid var(--line); }
+    .secondary:hover { border-color: #6b8394; }
+    .setting { margin-top: 22px; }
+    .setting-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; font-size: 13px; }
+    .setting-line label { color: #dce6ed; font-weight: 650; }
+    output { color: #a9ead7; font-variant-numeric: tabular-nums; font-weight: 750; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+    .scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; margin-top: 2px; }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 23px; }
+    .metric { padding: 12px 11px; background: #111a22; border: 1px solid #293946; border-radius: 12px; min-width: 0; }
+    .metric-label { color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+    .metric-value { font-size: 24px; line-height: 1; font-weight: 780; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+    .metric-value.small { font-size: 16px; letter-spacing: -.02em; }
+    .note { margin: 17px 16px 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .note strong { color: var(--text); }
+    .next { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px; display: flex; gap: 14px; background: rgba(25,35,45,.62); }
+    .next-number { flex: 0 0 30px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: #263f42; color: #a9ead7; font-size: 13px; font-weight: 800; }
+    .next h2 { font-size: 14px; margin: 1px 0 5px; }
+    .next p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
+
+    .reset-ai { width: calc(100% - 32px); margin: 14px 16px 0; }
+    .ai-explainer { margin: 14px 16px 0; padding: 12px; border: 1px solid #35574e; background: rgba(40,75,65,.2); border-radius: 11px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .ai-explainer strong { color: #a9ead7; }
+    .metric-value.tiny { font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+    @media (max-width: 850px) {
+      .layout { grid-template-columns: 1fr; }
+      .control-panel { display: grid; grid-template-columns: 1fr 1fr; }
+      .control-panel .panel-head { grid-column: 1 / -1; }
+      .controls-body { padding-bottom: 3px; }
+      .note { margin-top: 17px; padding: 16px 16px 0; border-top: 0; border-left: 1px solid var(--line); }
+      .metrics { margin-top: 20px; }
+    }
+    @media (max-width: 560px) {
+      .shell { padding: 20px 12px 26px; }
+      header { display: block; }
+      .phase-pill { display: inline-block; margin-top: 13px; }
+      .sim-foot { display: block; }
+      .sim-foot span { display: block; margin-top: 4px; }
+      .control-panel { display: block; }
+      .note { border-left: 0; border-top: 1px solid var(--line); padding: 14px 0 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <div class="eyebrow">Laboratorio di simulazione</div>
+        <h1>Semafori intelligenti</h1>
+        <p class="intro">Quarto prototipo: confronta un semaforo a tempi fissi, una regola adattiva e un agente che apprende per rinforzo quali fasi e durate del verde riducono code e attese.</p>
+      </div>
+      <div class="phase-pill">FASE 4 - AI SPERIMENTALE</div>
+    </header>
+
+    <section class="layout" aria-label="Simulatore e controlli">
+      <div class="sim-panel">
+        <div class="panel-head">
+          <strong>Vista dall'alto dell'incrocio</strong>
+          <span class="live-state"><span class="dot" id="stateDot"></span><span id="stateText">Simulazione attiva</span></span>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="trafficCanvas" width="1000" height="650" aria-label="Incrocio visto dall'alto con automobili in movimento"></canvas>
+        </div>
+        <div class="sim-foot">
+          <span><strong>Direzione di marcia:</strong> a destra della carreggiata, come in Italia.</span>
+          <span>Puoi confrontare la modalità intelligente con quella a tempi fissi usando le stesse impostazioni.</span>
+        </div>
+      </div>
+
+      <aside class="control-panel">
+        <div class="panel-head"><h2>Controlli</h2></div>
+        <div class="controls-body">
+          <div class="actions">
+            <button class="primary" id="toggleButton" type="button">Pausa</button>
+            <button class="secondary" id="resetButton" type="button">Azzera</button>
+          </div>
+
+          <div class="setting">
+            <div class="setting-line"><label for="density">Intensità del traffico</label><output id="densityValue" for="density">5/10</output></div>
+            <input id="density" type="range" min="1" max="10" value="5" step="1">
+            <div class="scale"><span>Poche auto</span><span>Molte auto</span></div>
+          </div>
+
+          <div class="setting">
+            <div class="setting-line"><label for="speed">Velocità delle auto</label><output id="speedValue" for="speed">1,0×</output></div>
+            <input id="speed" type="range" min="0.5" max="2" value="1" step="0.1">
+            <div class="scale"><span>Lenta</span><span>Veloce</span></div>
+          </div>
+
+          <div class="setting">
+            <div class="setting-line"><label for="controlMode">Modalità semaforo</label></div>
+            <select id="controlMode">
+              <option value="intelligent" selected>Adattivo — regola basata sulla coda</option>
+              <option value="fixed">Tempi fissi — verde di 12 s</option>
+              <option value="ai">AI — apprendimento per rinforzo (Q-learning)</option>
+            </select>
+            <div class="scale"><span>Cambiando modalità la simulazione si azzera; l'apprendimento AI resta memorizzato.</span></div>
+          </div>
+
+          <button class="secondary reset-ai" id="resetAIButton" type="button">Azzera apprendimento AI</button>
+
+          <div class="metrics">
+            <div class="metric"><div class="metric-label">Fase semaforica</div><div class="metric-value small" id="phaseLabel">N–S verde</div></div>
+            <div class="metric"><div class="metric-label">Cambio tra</div><div class="metric-value" id="phaseCountdown">6 s</div></div>
+            <div class="metric"><div class="metric-label">Auto in coda N–S</div><div class="metric-value" id="queueNsCount">0</div></div>
+            <div class="metric"><div class="metric-label">Auto in coda E–O</div><div class="metric-value" id="queueEwCount">0</div></div>
+            <div class="metric"><div class="metric-label">Auto visibili</div><div class="metric-value" id="activeCount">0</div></div>
+            <div class="metric"><div class="metric-label">In attesa di entrare</div><div class="metric-value" id="pendingCount">0</div></div>
+            <div class="metric"><div class="metric-label">Auto uscite</div><div class="metric-value" id="passedCount">0</div></div>
+            <div class="metric"><div class="metric-label">Attesa media per auto uscita</div><div class="metric-value small" id="avgWaitValue">—</div></div>
+            <div class="metric"><div class="metric-label">Attesa massima in coda</div><div class="metric-value small" id="longestQueueWait">—</div></div>
+            <div class="metric"><div class="metric-label">Tempo simulato</div><div class="metric-value small" id="simTimeValue">0 s</div></div>
+            <div class="metric"><div class="metric-label">Decisioni AI</div><div class="metric-value" id="aiDecisionCount">0</div></div>
+            <div class="metric"><div class="metric-label">Esplorazione AI</div><div class="metric-value small" id="aiEpsilonValue">25%</div></div>
+            <div class="metric"><div class="metric-label">Ultima scelta AI</div><div class="metric-value small" id="aiChoiceValue">—</div></div>
+            <div class="metric"><div class="metric-label">Punteggio ultima fase</div><div class="metric-value small" id="aiLastRewardValue">—</div></div>
+          </div>
+        </div>
+        <p class="note"><strong>Come funziona:</strong> la modalità adattiva usa una regola fissa basata sulla coda. La modalità AI usa Q-learning: osserva la dimensione delle due code e quale direzione è stata servita per ultima, sceglie una direzione e una durata del verde da 6 a 22 secondi, poi aggiorna i propri valori in base alle code e alle auto uscite. L'apprendimento è sperimentale: all'inizio può fare scelte peggiori e deve accumulare molte decisioni. Il modello viene salvato nel browser, se la memorizzazione locale è disponibile. “Azzera apprendimento AI” cancella il modello appreso. Le auto in attesa oltre il bordo visibile restano conteggiate e continuano ad accumulare attesa.</p>
+      </aside>
+    </section>
+
+    <section class="next" aria-label="Come confrontare le modalità">
+      <div class="next-number">04</div>
+      <div>
+        <h2>Come allenare e confrontare l'agente AI</h2>
+        <p>Per prima cosa seleziona “AI — apprendimento per rinforzo” e lasciala funzionare per diversi minuti simulati, meglio ancora con più prove. Poi confronta “AI” e “Tempi fissi” con la stessa intensità e velocità: ogni azzeramento riparte dalla stessa sequenza di arrivi, così il confronto è più equo. L'AI mantiene ciò che ha appreso fra gli azzeramenti e, se il browser consente la memoria locale, anche dopo averlo chiuso e riaperto. Per ripartire da zero usa “Azzera apprendimento AI”.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const canvas = document.getElementById('trafficCanvas');
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width;
+      const H = canvas.height;
+      const cx = W / 2;
+      const cy = H / 2;
+      const roadWidth = 184;
+      const laneOffsets = [23, 69];
+      const CAR_LENGTH = 42;
+      const SAFE_GAP = 12;
+      const BRAKING = 175;
+      const carColors = ['#e76f51', '#f4b942', '#4f83cc', '#6eaa74', '#d9e1e8', '#ba8bd9', '#e08bba', '#e7e3d7'];
+      const MIN_GREEN_SECONDS = 6;
+      const MAX_GREEN_SECONDS = 22;
+      const FIXED_GREEN_SECONDS = 12;
+      const YELLOW_SECONDS = 2;
+      const ALL_RED_SECONDS = 1;
+      const AI_GREEN_DURATIONS = [6, 10, 14, 18, 22];
+      const AI_STATE_COUNT = 32; // 4 livelli coda N-S × 4 livelli coda E-O × 2 ultime direzioni servite.
+      const AI_ACTION_COUNT = 10; // 5 durate possibili per ciascuna delle 2 direzioni.
+      const AI_LEARNING_RATE = 0.20;
+      const AI_DISCOUNT = 0.85;
+      const AI_START_EPSILON = 0.25;
+      const AI_MIN_EPSILON = 0.05;
+      const AI_STORAGE_KEY = 'semaforiIntelligentiQLearningV1';
+
+      let cars = [];
+      // Arrivi che si sono verificati mentre l'ingresso della rispettiva corsia era bloccato.
+      // Restano in coda fuori dall'area disegnata invece di sparire dalla simulazione.
+      let pendingArrivals = [];
+      let running = true;
+      let passed = 0;
+      let spawnTimer = 0;
+      let activeGroup = 'northSouth';
+      let phaseColor = 'green';
+      let phaseDuration = MIN_GREEN_SECONDS;
+      let signalPhaseElapsed = 0;
+      let lastServedGroup = 'eastWest';
+      let elapsedSimulationSeconds = 0;
+      let completedWaitSeconds = 0;
+      let previousFrame = performance.now();
+      let nextId = 1;
+      let trafficRandomSeed = 20261016;
+      let aiQTable = createEmptyQTable();
+      let aiEpsilon = AI_START_EPSILON;
+      let aiDecisionCountValue = 0;
+      let aiExplorationCount = 0;
+      let aiLastChoice = '—';
+      let aiLastReward = null;
+      let aiPendingExperience = null;
+
+      const densityInput = document.getElementById('density');
+      const speedInput = document.getElementById('speed');
+      const densityValue = document.getElementById('densityValue');
+      const speedValue = document.getElementById('speedValue');
+      const toggleButton = document.getElementById('toggleButton');
+      const stateText = document.getElementById('stateText');
+      const stateDot = document.getElementById('stateDot');
+      const activeCount = document.getElementById('activeCount');
+      const pendingCount = document.getElementById('pendingCount');
+      const longestQueueWait = document.getElementById('longestQueueWait');
+      const passedCount = document.getElementById('passedCount');
+      const phaseLabel = document.getElementById('phaseLabel');
+      const phaseCountdown = document.getElementById('phaseCountdown');
+      const queueNsCount = document.getElementById('queueNsCount');
+      const queueEwCount = document.getElementById('queueEwCount');
+      const avgWaitValue = document.getElementById('avgWaitValue');
+      const simTimeValue = document.getElementById('simTimeValue');
+      const controlModeInput = document.getElementById('controlMode');
+      const resetAIButton = document.getElementById('resetAIButton');
+      const aiDecisionCount = document.getElementById('aiDecisionCount');
+      const aiEpsilonValue = document.getElementById('aiEpsilonValue');
+      const aiChoiceValue = document.getElementById('aiChoiceValue');
+      const aiLastRewardValue = document.getElementById('aiLastRewardValue');
+
+      function createEmptyQTable() {
+        return Array.from({ length: AI_STATE_COUNT }, () => Array(AI_ACTION_COUNT).fill(0));
+      }
+
+      function loadAIModel() {
+        try {
+          const saved = localStorage.getItem(AI_STORAGE_KEY);
+          if (!saved) return;
+          const model = JSON.parse(saved);
+          if (!Array.isArray(model.q) || model.q.length !== AI_STATE_COUNT ||
+              model.q.some(row => !Array.isArray(row) || row.length !== AI_ACTION_COUNT ||
+                row.some(value => typeof value !== 'number' || !Number.isFinite(value)))) return;
+          aiQTable = model.q;
+          if (Number.isFinite(model.epsilon)) aiEpsilon = Math.max(AI_MIN_EPSILON, Math.min(AI_START_EPSILON, model.epsilon));
+          if (Number.isInteger(model.decisions) && model.decisions >= 0) aiDecisionCountValue = model.decisions;
+          if (Number.isInteger(model.explorations) && model.explorations >= 0) aiExplorationCount = model.explorations;
+          if (typeof model.lastChoice === 'string') aiLastChoice = model.lastChoice;
+          if (typeof model.lastReward === 'number' && Number.isFinite(model.lastReward)) aiLastReward = model.lastReward;
+        } catch (error) {
+          // Il simulatore resta utilizzabile anche se il browser disabilita la memoria locale.
+        }
+      }
+
+      function saveAIModel() {
+        try {
+          localStorage.setItem(AI_STORAGE_KEY, JSON.stringify({
+            q: aiQTable,
+            epsilon: aiEpsilon,
+            decisions: aiDecisionCountValue,
+            explorations: aiExplorationCount,
+            lastChoice: aiLastChoice,
+            lastReward: aiLastReward
+          }));
+        } catch (error) {
+          // In caso di file locale o memoria bloccata, l'apprendimento resta attivo fino al reload.
+        }
+      }
+
+      // Generatore separato per il traffico: le tre modalità ricevono la stessa sequenza di arrivi.
+      function randomTraffic() {
+        trafficRandomSeed = (Math.imul(1664525, trafficRandomSeed) + 1013904223) >>> 0;
+        return trafficRandomSeed / 4294967296;
+      }
+
+      function roundedRect(x, y, width, height, radius) {
+        const r = Math.min(radius, width / 2, height / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
+      }
+
+      function fillRoundRect(x, y, width, height, radius, color) {
+        roundedRect(x, y, width, height, radius);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+
+      function drawBackground() {
+        ctx.fillStyle = '#c8d9c8';
+        ctx.fillRect(0, 0, W, H);
+
+        // Lotti verdi e piccoli elementi urbani, per rendere leggibile la scena.
+        const blocks = [
+          [22, 22, 250, 118], [728, 22, 250, 118],
+          [22, 510, 250, 118], [728, 510, 250, 118]
+        ];
+        for (const [x, y, w, h] of blocks) {
+          fillRoundRect(x, y, w, h, 12, '#b7cdb7');
+          fillRoundRect(x + 13, y + 13, w - 26, h - 26, 9, '#c3d5c2');
+          ctx.fillStyle = '#afc3b0';
+          for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.arc(x + 32 + i * 45, y + h - 28, 6 + (i % 2) * 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Marciapiedi e carreggiate.
+        ctx.fillStyle = '#aeb9b7';
+        ctx.fillRect(cx - roadWidth / 2 - 17, 0, roadWidth + 34, H);
+        ctx.fillRect(0, cy - roadWidth / 2 - 17, W, roadWidth + 34);
+        ctx.fillStyle = '#454d55';
+        ctx.fillRect(cx - roadWidth / 2, 0, roadWidth, H);
+        ctx.fillRect(0, cy - roadWidth / 2, W, roadWidth);
+
+        // Linee di margine.
+        ctx.strokeStyle = '#d3d8d5';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx - roadWidth / 2 + 5, 0); ctx.lineTo(cx - roadWidth / 2 + 5, H);
+        ctx.moveTo(cx + roadWidth / 2 - 5, 0); ctx.lineTo(cx + roadWidth / 2 - 5, H);
+        ctx.moveTo(0, cy - roadWidth / 2 + 5); ctx.lineTo(W, cy - roadWidth / 2 + 5);
+        ctx.moveTo(0, cy + roadWidth / 2 - 5); ctx.lineTo(W, cy + roadWidth / 2 - 5);
+        ctx.stroke();
+
+        // Tratteggi che separano le corsie e doppia linea centrale.
+        ctx.strokeStyle = 'rgba(239, 241, 226, .68)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([19, 16]);
+        ctx.beginPath();
+        ctx.moveTo(0, cy - 46); ctx.lineTo(cx - roadWidth / 2, cy - 46);
+        ctx.moveTo(cx + roadWidth / 2, cy - 46); ctx.lineTo(W, cy - 46);
+        ctx.moveTo(0, cy + 46); ctx.lineTo(cx - roadWidth / 2, cy + 46);
+        ctx.moveTo(cx + roadWidth / 2, cy + 46); ctx.lineTo(W, cy + 46);
+        ctx.moveTo(cx - 46, 0); ctx.lineTo(cx - 46, cy - roadWidth / 2);
+        ctx.moveTo(cx - 46, cy + roadWidth / 2); ctx.lineTo(cx - 46, H);
+        ctx.moveTo(cx + 46, 0); ctx.lineTo(cx + 46, cy - roadWidth / 2);
+        ctx.moveTo(cx + 46, cy + roadWidth / 2); ctx.lineTo(cx + 46, H);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.strokeStyle = '#dfc66e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, cy - 2); ctx.lineTo(cx - roadWidth / 2, cy - 2);
+        ctx.moveTo(cx + roadWidth / 2, cy - 2); ctx.lineTo(W, cy - 2);
+        ctx.moveTo(0, cy + 2); ctx.lineTo(cx - roadWidth / 2, cy + 2);
+        ctx.moveTo(cx + roadWidth / 2, cy + 2); ctx.lineTo(W, cy + 2);
+        ctx.moveTo(cx - 2, 0); ctx.lineTo(cx - 2, cy - roadWidth / 2);
+        ctx.moveTo(cx - 2, cy + roadWidth / 2); ctx.lineTo(cx - 2, H);
+        ctx.moveTo(cx + 2, 0); ctx.lineTo(cx + 2, cy - roadWidth / 2);
+        ctx.moveTo(cx + 2, cy + roadWidth / 2); ctx.lineTo(cx + 2, H);
+        ctx.stroke();
+
+        drawCrosswalks();
+        drawStopLines();
+      }
+
+      function drawCrosswalks() {
+        ctx.fillStyle = 'rgba(244, 246, 239, .84)';
+        const stripe = 8;
+        // Attraversamenti pedonali, solo grafici in questa prima fase.
+        for (let i = 0; i < 8; i++) {
+          const offset = -roadWidth / 2 + 18 + i * 19;
+          ctx.fillRect(cx + offset, cy - roadWidth / 2 + 4, 11, 20);
+          ctx.fillRect(cx + offset, cy + roadWidth / 2 - 24, 11, 20);
+          ctx.fillRect(cx - roadWidth / 2 + 4, cy + offset, 20, 11);
+          ctx.fillRect(cx + roadWidth / 2 - 24, cy + offset, 20, 11);
+        }
+        ctx.fillStyle = 'rgba(244,246,239,.8)';
+        ctx.fillRect(cx - roadWidth / 2 + 6, cy - roadWidth / 2 + 28, 10, 3);
+        ctx.fillRect(cx + roadWidth / 2 - 16, cy + roadWidth / 2 - 31, 10, 3);
+      }
+
+      function drawStopLines() {
+        // La linea si trova al bordo dell'incrocio; le auto si fermano poco prima.
+        ctx.fillStyle = '#f4f6ef';
+        ctx.fillRect(cx - roadWidth / 2 - 1, cy + 8, 4, roadWidth / 2 - 8);
+        ctx.fillRect(cx + roadWidth / 2 - 3, cy - roadWidth / 2, 4, roadWidth / 2 - 8);
+        // Lato superiore: linea sulla corsia sudbound (ovest della carreggiata).
+        // Lato inferiore: linea sulla corsia northbound (est della carreggiata).
+        ctx.fillRect(cx - roadWidth / 2, cy - roadWidth / 2 - 1, roadWidth / 2 - 8, 4);
+        ctx.fillRect(cx + 8, cy + roadWidth / 2 - 3, roadWidth / 2 - 8, 4);
+      }
+
+      function drawSignals() {
+        // Due semafori per l'asse nord-sud e due per l'asse est-ovest.
+        const positions = [
+          { x: cx - 123, y: cy - 123, group: 'eastWest' },
+          { x: cx + 103, y: cy - 123, group: 'northSouth' },
+          { x: cx - 123, y: cy + 91, group: 'northSouth' },
+          { x: cx + 103, y: cy + 91, group: 'eastWest' }
+        ];
+        const lampColors = {
+          red: ['#ff514d', '#63302f'],
+          yellow: ['#ffd34e', '#66562c'],
+          green: ['#56e28c', '#28533c']
+        };
+
+        for (const signal of positions) {
+          const state = getSignalForGroup(signal.group);
+          fillRoundRect(signal.x, signal.y, 20, 40, 5, '#20272c');
+          const lamps = ['red', 'yellow', 'green'];
+          for (let i = 0; i < lamps.length; i++) {
+            const lamp = lamps[i];
+            ctx.beginPath();
+            ctx.arc(signal.x + 10, signal.y + 8 + i * 12, 4.2, 0, Math.PI * 2);
+            ctx.fillStyle = lampColors[lamp][state === lamp ? 0 : 1];
+            ctx.fill();
+            if (state === lamp) {
+              ctx.beginPath();
+              ctx.arc(signal.x + 10, signal.y + 8 + i * 12, 6.2, 0, Math.PI * 2);
+              ctx.strokeStyle = lampColors[lamp][0];
+              ctx.globalAlpha = 0.35;
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+            }
+          }
+        }
+      }
+
+      function getSignalForGroup(group) {
+        if (phaseColor === 'allRed' || group !== activeGroup) return 'red';
+        return phaseColor;
+      }
+
+      function getPhaseLabel() {
+        if (phaseColor === 'allRed') return 'Tutto rosso';
+        const directionLabel = activeGroup === 'northSouth' ? 'N–S' : 'E–O';
+        return `${directionLabel} ${phaseColor === 'green' ? 'verde' : 'giallo'}`;
+      }
+
+      function getDirectionGroup(direction) {
+        return direction === 'north' || direction === 'south' ? 'northSouth' : 'eastWest';
+      }
+
+      function directionSign(direction) {
+        return direction === 'east' || direction === 'south' ? 1 : -1;
+      }
+
+      function getCoordinate(car) {
+        return car.direction === 'east' || car.direction === 'west' ? car.x : car.y;
+      }
+
+      function setCoordinate(car, coordinate) {
+        if (car.direction === 'east' || car.direction === 'west') car.x = coordinate;
+        else car.y = coordinate;
+      }
+
+      function getStopCoordinate(direction) {
+        if (direction === 'east') return cx - roadWidth / 2 - 24;
+        if (direction === 'west') return cx + roadWidth / 2 + 24;
+        if (direction === 'south') return cy - roadWidth / 2 - 24;
+        return cy + roadWidth / 2 + 24;
+      }
+
+      function countQueuedCars(group) {
+        const visibleQueue = cars.reduce((total, car) => {
+          return total + (getDirectionGroup(car.direction) === group && car.isQueued ? 1 : 0);
+        }, 0);
+        const upstreamQueue = pendingArrivals.reduce((total, arrival) => {
+          return total + (getDirectionGroup(arrival.direction) === group ? 1 : 0);
+        }, 0);
+        return visibleQueue + upstreamQueue;
+      }
+
+      function getLongestCurrentQueueWait() {
+        let longest = 0;
+        for (const arrival of pendingArrivals) {
+          if (arrival.waitSeconds > longest) longest = arrival.waitSeconds;
+        }
+        for (const car of cars) {
+          if (car.isQueued && car.waitSeconds > longest) longest = car.waitSeconds;
+        }
+        return longest;
+      }
+
+      function chooseNextGreenGroup() {
+        const northSouthQueue = countQueuedCars('northSouth');
+        const eastWestQueue = countQueuedCars('eastWest');
+
+        // Se una sola direzione ha auto in coda, evitiamo di dare verde a una strada vuota.
+        if (northSouthQueue > 0 && eastWestQueue === 0) return 'northSouth';
+        if (eastWestQueue > 0 && northSouthQueue === 0) return 'eastWest';
+
+        // Se entrambe hanno traffico (o entrambe sono vuote), manteniamo l'alternanza.
+        return lastServedGroup === 'northSouth' ? 'eastWest' : 'northSouth';
+      }
+
+      function getGreenDuration(group) {
+        if (controlModeInput.value === 'fixed') return FIXED_GREEN_SECONDS;
+        const queueLength = countQueuedCars(group);
+        const requestedDuration = MIN_GREEN_SECONDS + queueLength * 2;
+        return Math.max(MIN_GREEN_SECONDS, Math.min(MAX_GREEN_SECONDS, requestedDuration));
+      }
+
+      function queueBucket(queueLength) {
+        if (queueLength === 0) return 0;
+        if (queueLength <= 3) return 1;
+        if (queueLength <= 7) return 2;
+        return 3;
+      }
+
+      function getAIState() {
+        const northSouthBucket = queueBucket(countQueuedCars('northSouth'));
+        const eastWestBucket = queueBucket(countQueuedCars('eastWest'));
+        const lastDirection = lastServedGroup === 'northSouth' ? 0 : 1;
+        return ((northSouthBucket * 4 + eastWestBucket) * 2) + lastDirection;
+      }
+
+      function maxQValue(state) {
+        return Math.max(...aiQTable[state]);
+      }
+
+      function chooseAIAction(state) {
+        // Epsilon-greedy: talvolta prova una scelta nuova, altrimenti usa quella
+        // con il valore Q stimato più alto. I pareggi iniziali vengono risolti a caso.
+        const explore = Math.random() < aiEpsilon;
+        let action;
+        if (explore) {
+          action = Math.floor(Math.random() * AI_ACTION_COUNT);
+          aiExplorationCount++;
+        } else {
+          const row = aiQTable[state];
+          const bestValue = Math.max(...row);
+          const bestActions = [];
+          for (let i = 0; i < row.length; i++) {
+            if (Math.abs(row[i] - bestValue) < 1e-9) bestActions.push(i);
+          }
+          action = bestActions[Math.floor(Math.random() * bestActions.length)];
+        }
+        aiEpsilon = Math.max(AI_MIN_EPSILON, aiEpsilon * 0.985);
+        return { action, explore };
+      }
+
+      function learnFromPreviousDecision(nextState) {
+        if (!aiPendingExperience) return;
+        const { state, action, reward } = aiPendingExperience;
+        const oldValue = aiQTable[state][action];
+        const target = reward + AI_DISCOUNT * maxQValue(nextState);
+        aiQTable[state][action] = oldValue + AI_LEARNING_RATE * (target - oldValue);
+        aiLastReward = reward;
+        aiPendingExperience = null;
+        saveAIModel();
+      }
+
+      function startAIGreen() {
+        const state = getAIState();
+        learnFromPreviousDecision(state);
+        const { action, explore } = chooseAIAction(state);
+        const group = action < AI_GREEN_DURATIONS.length ? 'northSouth' : 'eastWest';
+        const duration = AI_GREEN_DURATIONS[action % AI_GREEN_DURATIONS.length];
+        activeGroup = group;
+        lastServedGroup = group;
+        phaseColor = 'green';
+        phaseDuration = duration;
+        aiPendingExperience = { state, action, reward: 0 };
+        aiDecisionCountValue++;
+        aiLastChoice = `${group === 'northSouth' ? 'N–S' : 'E–O'} · ${duration} s${explore ? ' (prova)' : ''}`;
+        saveAIModel();
+      }
+
+      function advanceSignals(deltaSeconds) {
+        signalPhaseElapsed += deltaSeconds;
+        while (signalPhaseElapsed >= phaseDuration) {
+          signalPhaseElapsed -= phaseDuration;
+          if (phaseColor === 'green') {
+            phaseColor = 'yellow';
+            phaseDuration = YELLOW_SECONDS;
+          } else if (phaseColor === 'yellow') {
+            phaseColor = 'allRed';
+            phaseDuration = ALL_RED_SECONDS;
+          } else if (controlModeInput.value === 'ai') {
+            startAIGreen();
+          } else {
+            activeGroup = chooseNextGreenGroup();
+            lastServedGroup = activeGroup;
+            phaseColor = 'green';
+            phaseDuration = getGreenDuration(activeGroup);
+          }
+        }
+      }
+
+      function lanePosition(direction, lane) {
+        const offset = laneOffsets[lane];
+        if (direction === 'east') return { x: -30, y: cy + offset };
+        if (direction === 'west') return { x: W + 30, y: cy - offset };
+        // In Italia si guida a destra: chi va verso nord usa il lato est,
+        // chi va verso sud usa il lato ovest della carreggiata verticale.
+        if (direction === 'south') return { x: cx - offset, y: -30 };
+        return { x: cx + offset, y: H + 30 };
+      }
+
+      function spawnBlocked(direction, lane) {
+        return cars.some(car => {
+          if (car.direction !== direction || car.lane !== lane) return false;
+          if (direction === 'east') return car.x < 105;
+          if (direction === 'west') return car.x > W - 105;
+          if (direction === 'south') return car.y < 105;
+          return car.y > H - 105;
+        });
+      }
+
+      function enqueueIncomingCar() {
+        const directions = ['east', 'west', 'north', 'south'];
+        const direction = directions[Math.floor(randomTraffic() * directions.length)];
+        const lane = Math.floor(randomTraffic() * laneOffsets.length);
+        // Ogni arrivo viene registrato anche se non può ancora comparire sul canvas.
+        // La coda esterna rappresenta le auto che si accumulano oltre il bordo visibile.
+        pendingArrivals.push({
+          id: nextId++, direction, lane,
+          speedMultiplier: 0.88 + randomTraffic() * 0.24,
+          waitSeconds: 0,
+          color: carColors[Math.floor(randomTraffic() * carColors.length)]
+        });
+      }
+
+      function releasePendingArrivals(deltaSeconds) {
+        const stillWaiting = [];
+        const handledLanes = new Set();
+
+        // Manteniamo l'ordine degli arrivi per ogni corsia. In ogni aggiornamento
+        // può entrare al massimo un'auto per corsia, così non si sovrappongono al bordo.
+        for (const arrival of pendingArrivals) {
+          const laneKey = `${arrival.direction}:${arrival.lane}`;
+          if (handledLanes.has(laneKey) || spawnBlocked(arrival.direction, arrival.lane)) {
+            arrival.waitSeconds += deltaSeconds;
+            stillWaiting.push(arrival);
+            handledLanes.add(laneKey);
+            continue;
+          }
+
+          const position = lanePosition(arrival.direction, arrival.lane);
+          cars.push({
+            ...arrival,
+            x: position.x,
+            y: position.y,
+            isQueued: false
+          });
+          handledLanes.add(laneKey);
+        }
+
+        pendingArrivals = stillWaiting;
+      }
+
+      function drawCar(car) {
+        ctx.save();
+        ctx.translate(car.x, car.y);
+        // La parte anteriore dell'auto è disegnata verso destra: ruotiamo ogni
+        // veicolo secondo il suo effettivo senso di marcia, non solo in base all'asse.
+        if (car.direction === 'west') ctx.rotate(Math.PI);
+        else if (car.direction === 'north') ctx.rotate(-Math.PI / 2);
+        else if (car.direction === 'south') ctx.rotate(Math.PI / 2);
+
+        // Ombra, carrozzeria, parabrezza e fari.
+        fillRoundRect(-19, -9, 40, 20, 5, 'rgba(0,0,0,.2)');
+        fillRoundRect(-21, -10, 42, 20, 5, '#222930');
+        fillRoundRect(-19, -9, 38, 18, 4, car.color);
+        fillRoundRect(-6, -7, 13, 14, 3, 'rgba(213,239,244,.88)');
+        fillRoundRect(8, -7, 6, 14, 2, 'rgba(35,51,61,.68)');
+        ctx.fillStyle = '#fff2c9';
+        ctx.fillRect(17, -6, 2, 4);
+        ctx.fillRect(17, 2, 2, 4);
+        ctx.fillStyle = '#bd4a43';
+        ctx.fillRect(-20, -6, 2, 4);
+        ctx.fillRect(-20, 2, 2, 4);
+        ctx.restore();
+      }
+
+      function update(deltaSeconds) {
+        if (!running) return;
+
+        const passedBeforeUpdate = passed;
+        elapsedSimulationSeconds += deltaSeconds;
+        advanceSignals(deltaSeconds);
+        spawnTimer += deltaSeconds * 1000;
+        const density = Number(densityInput.value);
+        const spawnInterval = 2050 - density * 155;
+        while (spawnTimer >= spawnInterval) {
+          spawnTimer -= spawnInterval;
+          enqueueIncomingCar();
+        }
+
+        releasePendingArrivals(deltaSeconds);
+        moveCars(deltaSeconds);
+
+        // Reward dell'agente: penalità proporzionale alle code e premio per ogni auto uscita.
+        // La ricompensa viene accumulata per tutta la decisione di verde.
+        if (controlModeInput.value === 'ai' && aiPendingExperience) {
+          const totalQueue = countQueuedCars('northSouth') + countQueuedCars('eastWest');
+          const carsExitedThisFrame = passed - passedBeforeUpdate;
+          aiPendingExperience.reward += (-0.20 * totalQueue * deltaSeconds) + (carsExitedThisFrame * 2);
+        }
+      }
+
+      function moveCars(deltaSeconds) {
+        // Si muovono prima le auto in testa a ogni corsia, poi quelle in coda.
+        const orderedCars = [...cars].sort((a, b) => {
+          if (a.direction !== b.direction) return a.direction.localeCompare(b.direction);
+          if (a.lane !== b.lane) return a.lane - b.lane;
+          const sign = directionSign(a.direction);
+          return sign > 0 ? getCoordinate(b) - getCoordinate(a) : getCoordinate(a) - getCoordinate(b);
+        });
+        const leaderPositions = new Map();
+
+        for (const car of orderedCars) {
+          const sign = directionSign(car.direction);
+          const coordinate = getCoordinate(car);
+          const group = getDirectionGroup(car.direction);
+          const mayEnterIntersection = phaseColor === 'green' && activeGroup === group;
+          let permittedSpeed = 132 * Number(speedInput.value) * car.speedMultiplier;
+          let stopDistance = sign * (getStopCoordinate(car.direction) - coordinate);
+
+          // Rosso e giallo vietano di oltrepassare la linea d'arresto.
+          // Chi l'ha già superata continua, così libera l'incrocio.
+          if (!mayEnterIntersection && stopDistance >= 0) {
+            permittedSpeed = Math.min(permittedSpeed, Math.sqrt(2 * BRAKING * stopDistance));
+          }
+
+          const laneKey = `${car.direction}:${car.lane}`;
+          const leaderCoordinate = leaderPositions.get(laneKey);
+          let availableGap = Infinity;
+          if (leaderCoordinate !== undefined) {
+            availableGap = sign * (leaderCoordinate - coordinate) - CAR_LENGTH - SAFE_GAP;
+            permittedSpeed = Math.min(permittedSpeed, Math.sqrt(2 * BRAKING * Math.max(0, availableGap)));
+          }
+
+          let movement = permittedSpeed * deltaSeconds;
+          if (!mayEnterIntersection && stopDistance >= 0) movement = Math.min(movement, stopDistance);
+          if (availableGap !== Infinity) movement = Math.min(movement, Math.max(0, availableGap));
+
+          const newCoordinate = coordinate + sign * movement;
+          setCoordinate(car, newCoordinate);
+          const actualSpeed = deltaSeconds > 0 ? movement / deltaSeconds : 0;
+          const newStopDistance = sign * (getStopCoordinate(car.direction) - newCoordinate);
+          car.isQueued = newStopDistance >= 0 && actualSpeed < 8;
+          if (car.isQueued) car.waitSeconds += deltaSeconds;
+          leaderPositions.set(laneKey, newCoordinate);
+        }
+
+        const remainingCars = [];
+        for (const car of cars) {
+          const outside = car.x < -55 || car.x > W + 55 || car.y < -55 || car.y > H + 55;
+          if (outside) {
+            passed++;
+            completedWaitSeconds += car.waitSeconds;
+          } else remainingCars.push(car);
+        }
+        cars = remainingCars;
+      }
+
+      function drawOverlay() {
+        const countdown = Math.max(0, Math.ceil(phaseDuration - signalPhaseElapsed));
+        fillRoundRect(18, 16, 174, 36, 9, 'rgba(19,28,34,.88)');
+        ctx.fillStyle = '#a9ead7';
+        ctx.font = '800 12px system-ui, sans-serif';
+        ctx.fillText('SEMAFORI ATTIVI', 31, 38);
+
+        fillRoundRect(W - 198, 16, 180, 36, 9, 'rgba(19,28,34,.88)');
+        ctx.fillStyle = phaseColor === 'green' ? '#75efaa' : phaseColor === 'yellow' ? '#ffdc69' : '#ff8882';
+        ctx.font = '800 12px system-ui, sans-serif';
+        ctx.fillText(`${getPhaseLabel().toUpperCase()} · ${countdown} S`, W - 186, 38);
+      }
+
+      function render() {
+        drawBackground();
+        for (const car of cars) drawCar(car);
+        drawSignals();
+        drawOverlay();
+        activeCount.textContent = String(cars.length);
+        pendingCount.textContent = String(pendingArrivals.length);
+        const longestWait = getLongestCurrentQueueWait();
+        longestQueueWait.textContent = longestWait > 0
+          ? `${longestWait.toFixed(1).replace('.', ',')} s`
+          : '—';
+        passedCount.textContent = String(passed);
+        phaseLabel.textContent = getPhaseLabel();
+        phaseCountdown.textContent = `${Math.max(0, Math.ceil(phaseDuration - signalPhaseElapsed))} s`;
+        queueNsCount.textContent = String(countQueuedCars('northSouth'));
+        queueEwCount.textContent = String(countQueuedCars('eastWest'));
+        avgWaitValue.textContent = passed > 0
+          ? `${(completedWaitSeconds / passed).toFixed(1).replace('.', ',')} s`
+          : '—';
+        simTimeValue.textContent = `${Math.floor(elapsedSimulationSeconds)} s`;
+        aiDecisionCount.textContent = String(aiDecisionCountValue);
+        aiEpsilonValue.textContent = `${Math.round(aiEpsilon * 100)}%`;
+        aiChoiceValue.textContent = aiLastChoice;
+        aiLastRewardValue.textContent = aiLastReward === null ? '—' : aiLastReward.toFixed(1).replace('.', ',');
+        const aiSelected = controlModeInput.value === 'ai';
+        aiDecisionCount.closest('.metric').style.borderColor = aiSelected ? '#477867' : '#293946';
+        aiEpsilonValue.closest('.metric').style.borderColor = aiSelected ? '#477867' : '#293946';
+      }
+
+      function syncControls() {
+        densityValue.textContent = `${densityInput.value}/10`;
+        speedValue.textContent = `${Number(speedInput.value).toFixed(1).replace('.', ',')}×`;
+      }
+
+      function syncRunningState() {
+        toggleButton.textContent = running ? 'Pausa' : 'Riprendi';
+        stateText.textContent = running ? 'Simulazione attiva' : 'Simulazione in pausa';
+        stateDot.classList.toggle('paused', !running);
+      }
+
+      function resetSimulation() {
+        cars = [];
+        pendingArrivals = [];
+        passed = 0;
+        spawnTimer = 0;
+        trafficRandomSeed = 20261016;
+        activeGroup = 'northSouth';
+        phaseColor = 'green';
+        phaseDuration = getGreenDuration(activeGroup);
+        signalPhaseElapsed = 0;
+        lastServedGroup = 'eastWest';
+        elapsedSimulationSeconds = 0;
+        completedWaitSeconds = 0;
+        nextId = 1;
+        aiPendingExperience = null;
+        running = true;
+        if (controlModeInput.value === 'ai') startAIGreen();
+        syncRunningState();
+        render();
+      }
+
+      function resetAIKnowledge() {
+        aiQTable = createEmptyQTable();
+        aiEpsilon = AI_START_EPSILON;
+        aiDecisionCountValue = 0;
+        aiExplorationCount = 0;
+        aiLastChoice = '—';
+        aiLastReward = null;
+        aiPendingExperience = null;
+        try { localStorage.removeItem(AI_STORAGE_KEY); } catch (error) { /* Memoria locale non disponibile. */ }
+        resetSimulation();
+      }
+
+      toggleButton.addEventListener('click', () => {
+        running = !running;
+        syncRunningState();
+      });
+      document.getElementById('resetButton').addEventListener('click', resetSimulation);
+      resetAIButton.addEventListener('click', resetAIKnowledge);
+      controlModeInput.addEventListener('change', resetSimulation);
+      densityInput.addEventListener('input', syncControls);
+      speedInput.addEventListener('input', syncControls);
+
+      function frame(now) {
+        const deltaSeconds = Math.min((now - previousFrame) / 1000, 0.05);
+        previousFrame = now;
+        update(deltaSeconds);
+        render();
+        requestAnimationFrame(frame);
+      }
+
+      loadAIModel();
+      syncControls();
+      syncRunningState();
+      if (controlModeInput.value === 'ai') startAIGreen();
+      render();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
